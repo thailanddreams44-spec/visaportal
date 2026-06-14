@@ -381,7 +381,7 @@
                                                         }
 
                                                         try {
-                                                            const response = await fetch("http://127.0.0.1:3000/api/send-sharecode-email", {
+                                                            const response = await fetch(window.API_BASE + '/api/send-sharecode-email', {
                                                                 method: "POST",
                                                                 headers: { "Content-Type": "application/json" },
                                                                 body: JSON.stringify({

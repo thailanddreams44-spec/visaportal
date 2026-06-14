@@ -260,7 +260,7 @@
                                     }
 
                                     try {
-                                      const resp = await fetch("http://localhost:3000/api/verify-otp", {
+                                      const resp = await fetch(window.API_BASE + '/api/verify-otp', {
                                         method: "POST",
                                         headers: { "Content-Type": "application/json" },
                                         body: JSON.stringify({ passportNumber, dob, otp: code })

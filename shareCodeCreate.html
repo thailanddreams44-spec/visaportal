@@ -411,7 +411,7 @@
                                                                                             };
 
                                                                                             const loadProxyImage = (path) => {
-                                                                                                const url = `http://127.0.0.1:3000/api/photo?key=${encodeURIComponent(path)}`;
+                                                                                                const url = `${window.API_BASE}/api/photo?key=${encodeURIComponent(path)}`;
                                                                                                 console.log("Loading fallback photo via proxy", url);
                                                                                                 showImage(url, setError);
                                                                                             };

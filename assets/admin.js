@@ -12,9 +12,11 @@ const firebaseConfig = {
   appId: "1:359907899762:web:a0da526c31adb0f18245eb"
 };
 
-const API_BASE_URL = (typeof window !== 'undefined' && window.location && window.location.origin)
-  ? window.location.origin
-  : 'http://127.0.0.1:3000';
+const API_BASE_URL = (window.API_BASE && window.API_BASE.trim())
+  ? window.API_BASE
+  : ((typeof window !== 'undefined' && window.location && window.location.origin)
+    ? window.location.origin
+    : 'http://127.0.0.1:3000');
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const collectionName = "visaAdminRecords";
@@ -59,6 +61,13 @@ function resetForm() {
   cancelEditButton.classList.add("hidden");
 }
 
+async function fetchRecordsFromFirestore() {
+  console.log("Fetching records directly from Firestore");
+  const recordsQuery = query(collection(db, collectionName), orderBy("name"));
+  const snapshot = await getDocs(recordsQuery);
+  return snapshot.docs.map(docItem => ({ id: docItem.id, ...docItem.data() }));
+}
+
 async function fetchRecords() {
   console.log("Fetching records from server API");
   try {
@@ -75,7 +84,15 @@ async function fetchRecords() {
     renderRecords(currentRecords);
   } catch (error) {
     console.error("Unable to fetch records from server API", error);
-    showStatus("Error", `Unable to load records: ${error.message || error}`, true);
+    showStatus("Warning", `Server API unavailable: ${error.message || error}. Attempting direct Firestore fetch.`, true);
+    try {
+      currentRecords = await fetchRecordsFromFirestore();
+      renderRecords(currentRecords);
+      showStatus("Loaded from Firestore", `Loaded ${currentRecords.length} records directly from Firestore.`, false);
+    } catch (fallbackError) {
+      console.error("Firestore fallback failed", fallbackError);
+      showStatus("Error", `Unable to load records: ${fallbackError.message || fallbackError}`, true);
+    }
   }
 }
 

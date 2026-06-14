@@ -10,8 +10,37 @@ const crypto = require("crypto");
 const fs = require('fs');
 const path = require('path');
 const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
-const { initializeApp, cert } = require('firebase-admin/app');
+const { initializeApp, cert, getApps } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
+const { GoogleAuth } = require('google-auth-library');
+
+const ROOT_DIR = path.join(__dirname, '..');
+const ENV_FILE_PATH = path.join(ROOT_DIR, '.env');
+
+if (fs.existsSync(ENV_FILE_PATH)) {
+  const envText = fs.readFileSync(ENV_FILE_PATH, 'utf8');
+  envText.split(/\r?\n/).forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) return;
+    const equalsIndex = trimmed.indexOf('=');
+    if (equalsIndex <= 0) return;
+    const key = trimmed.slice(0, equalsIndex).trim();
+    let value = trimmed.slice(equalsIndex + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    if (process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  });
+  console.log('Loaded .env from', ENV_FILE_PATH);
+} else {
+  console.log('No .env file found at', ENV_FILE_PATH);
+}
+
+const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY || 'AIzaSyCBDESuLDHbqKb-g2mSPKrnxmM6Cl1lQEw';
+const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'visaportal-55200';
+const SERVICE_ACCOUNT_PATH = path.join(__dirname, '..', 'service-account.json');
 
 const app = express();
 
@@ -36,23 +65,35 @@ const r2Client = new S3Client({
 });
 const R2_BUCKET = R2_BUCKET_NAME;
 
-const SERVICE_ACCOUNT_PATH = path.join(__dirname, '..', 'service-account-key.json');
 let firestore = null;
+let serviceAccount = null;
+let adminApp = null;
 
 try {
+  if (!fs.existsSync(SERVICE_ACCOUNT_PATH)) {
+    throw new Error(`Missing service account JSON at ${SERVICE_ACCOUNT_PATH}`);
+  }
+
   console.log('Loading service account from:', SERVICE_ACCOUNT_PATH);
-  const serviceAccount = require(SERVICE_ACCOUNT_PATH);
+  serviceAccount = require(SERVICE_ACCOUNT_PATH);
   console.log('Service account loaded. Initializing Firebase Admin...');
-  
-  initializeApp({
-    credential: cert(serviceAccount),
-  });
-  console.log('Firebase app initialized');
-  
-  firestore = getFirestore();
+
+  if (!getApps().length) {
+    adminApp = initializeApp({
+      credential: cert(serviceAccount),
+      projectId: serviceAccount.project_id,
+    });
+    console.log('Firebase app initialized');
+    console.log('Firebase project:', serviceAccount.project_id);
+    console.log('Firebase client email:', serviceAccount.client_email);
+  } else {
+    adminApp = getApps()[0];
+    console.log('Firebase app already initialized, using existing app:', adminApp.name);
+  }
+
+  firestore = getFirestore(adminApp);
   console.log('Firebase Firestore initialized successfully');
 } catch (err) {
-  // If app is already initialized, just get firestore reference
   if (err.code === 'app/duplicate-app') {
     console.log('Firebase app already initialized, using existing instance');
     try {
@@ -63,6 +104,7 @@ try {
     }
   } else {
     console.error('Firebase Admin initialization failed:', err.message);
+    console.error('Service account path:', SERVICE_ACCOUNT_PATH);
     console.error('Stack:', err.stack);
   }
 }
@@ -148,9 +190,88 @@ app.get("/api/admin-records", async (req, res) => {
     return res.json({ success: true, records });
   } catch (error) {
     console.error('admin-records error', error);
+    if (error.code === 16 || /UNAUTHENTICATED/.test(error.message)) {
+      try {
+        console.log('Firestore auth failed, using REST fallback for /api/admin-records');
+        const fallbackRecords = await fetchFirestoreRecordsViaRest();
+        return res.json({ success: true, records: fallbackRecords });
+      } catch (restError) {
+        console.error('Firestore REST fallback failed', restError);
+      }
+    }
     return res.status(500).json({ success: false, message: error.message || 'Unable to load records.' });
   }
 });
+
+async function getFirestoreAccessToken() {
+  if (!serviceAccount) {
+    throw new Error('Service account credentials are not loaded. Cannot obtain Firestore access token.');
+  }
+
+  const authOptions = {
+    scopes: ['https://www.googleapis.com/auth/datastore', 'https://www.googleapis.com/auth/cloud-platform'],
+    credentials: {
+      client_email: serviceAccount.client_email,
+      private_key: serviceAccount.private_key,
+    },
+  };
+
+  const auth = new GoogleAuth(authOptions);
+  const client = await auth.getClient();
+  const accessTokenResponse = await client.getAccessToken();
+  const token = accessTokenResponse?.token || accessTokenResponse;
+
+  if (!token) {
+    throw new Error('Unable to obtain access token for Firestore REST fallback.');
+  }
+
+  return token;
+}
+
+async function fetchFirestoreRecordsViaRest() {
+  const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery`;
+  const body = {
+    structuredQuery: {
+      from: [{ collectionId: 'visaAdminRecords' }],
+      orderBy: [{ field: { fieldPath: 'name' }, direction: 'ASCENDING' }],
+    },
+  };
+
+  const accessToken = await getFirestoreAccessToken();
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Firestore REST failed: ${response.status} ${text}`);
+  }
+
+  const rows = await response.json();
+  const records = [];
+  for (const row of rows) {
+    if (!row.document) continue;
+    const doc = row.document;
+    const record = { id: path.basename(doc.name) };
+    for (const [field, value] of Object.entries(doc.fields || {})) {
+      if (value.stringValue !== undefined) record[field] = value.stringValue;
+      else if (value.integerValue !== undefined) record[field] = parseInt(value.integerValue, 10);
+      else if (value.doubleValue !== undefined) record[field] = parseFloat(value.doubleValue);
+      else if (value.booleanValue !== undefined) record[field] = value.booleanValue;
+      else if (value.timestampValue !== undefined) record[field] = value.timestampValue;
+      else if (value.mapValue?.fields) {
+        record[field] = Object.fromEntries(Object.entries(value.mapValue.fields).map(([k, v]) => [k, v.stringValue || v.integerValue || v.doubleValue || v.booleanValue || v.timestampValue || null]));
+      }
+    }
+    records.push(record);
+  }
+  return records;
+}
 
 function stableSponsorLicence(seed = '') {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
