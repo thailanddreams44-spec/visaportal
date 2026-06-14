@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en" class="govuk-template govuk-template--rebranded">
+
+<head>
+    <meta charset="utf-8">
+    <title>Visa Portal Admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#1d70b8">
+    <link href="assets/css/govuk-frontend-5.10.2.min.css" rel="stylesheet" />
+    <style>
+        .admin-page {
+            padding: 2rem 0;
+        }
+
+        .admin-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .record-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        .record-table th,
+        .record-table td {
+            border: 1px solid #dfe1e5;
+            padding: 0.75rem;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .record-table th {
+            background: #f3f2f1;
+        }
+
+        .photo-preview {
+            max-width: 120px;
+            max-height: 120px;
+            object-fit: contain;
+            display: block;
+            margin-top: 0.5rem;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .admin-buttons button {
+            margin-right: 0.5rem;
+        }
+
+        .pdf-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .pdf-button svg {
+            width: 1rem;
+            height: 1rem;
+            fill: currentColor;
+        }
+    </style>
+</head>
+
+<body class="govuk-template__body">
+    <a href="#main-content" class="govuk-skip-link" data-module="govuk-skip-link">Skip to main content</a>
+
+    <header class="govuk-header" data-module="govuk-header">
+        <div class="govuk-header__container govuk-width-container">
+            <div class="govuk-header__logo">
+                <a href="#" class="govuk-header__link govuk-header__link--homepage">
+                    Visa Portal Admin
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main class="govuk-width-container admin-page" id="main-content">
+        <div class="govuk-grid-row">
+            <div class="govuk-grid-column-two-thirds">
+                <h1 class="govuk-heading-xl">Admin: Add / Edit / View / Delete Records</h1>
+                <p class="govuk-body">Manage resident records with name, DOB, nationality, status, passport number and photo storage.</p>
+                <p class="govuk-body-s" style="color:#0b0c0c; margin-bottom:1rem;">Important: open this page over <strong>http:// or https://</strong> so Firebase modules can load correctly. If you are using the file system, run a simple local server like <code>npx http-server .</code>.</p>
+
+                <div id="statusMessage" class="govuk-notification-banner govuk-notification-banner--success hidden" role="status" aria-labelledby="statusMessageTitle">
+                    <div class="govuk-notification-banner__content">
+                        <h2 class="govuk-notification-banner__title" id="statusMessageTitle"></h2>
+                        <div class="govuk-notification-banner__body" id="statusMessageText"></div>
+                    </div>
+                </div>
+
+                <form id="adminForm" class="govuk-form-group">
+                    <input type="hidden" id="recordId" />
+                    <input type="hidden" id="currentPhotoPath" />
+
+                    <div class="govuk-form-group">
+                        <label class="govuk-label" for="name">Full name</label>
+                        <input class="govuk-input" id="name" name="name" type="text" required />
+                    </div>
+
+                    <div class="govuk-form-group">
+                        <label class="govuk-label" for="dob">Date of birth</label>
+                        <input class="govuk-input" id="dob" name="dob" type="date" required />
+                    </div>
+
+                    <div class="govuk-form-group">
+                        <label class="govuk-label" for="nationality">Nationality</label>
+                        <input class="govuk-input" id="nationality" name="nationality" type="text" required />
+                    </div>
+
+                    <div class="govuk-form-group">
+                        <label class="govuk-label" for="status">Status</label>
+                        <input class="govuk-input" id="status" name="status" type="text" required />
+                    </div>
+
+                    <div class="govuk-form-group">
+                        <label class="govuk-label" for="passportNumber">Passport number</label>
+                        <input class="govuk-input" id="passportNumber" name="passportNumber" type="text" required />
+                    </div>
+
+                    <div class="govuk-form-group">
+                        <label class="govuk-label" for="photoFile">Passport photo</label>
+                        <input class="govuk-file-upload" id="photoFile" name="photoFile" type="file" accept="image/*" />
+                    </div>
+
+                    <div class="govuk-form-group">
+                        <label class="govuk-label" for="email">Email address</label>
+                        <input class="govuk-input" id="email" name="email" type="email" />
+                    </div>
+
+                    <div class="govuk-form-group">
+                        <label class="govuk-label" for="phone">Phone number</label>
+                        <input class="govuk-input" id="phone" name="phone" type="tel" />
+                    </div>
+
+                    <div class="govuk-form-group admin-buttons">
+                        <button class="govuk-button" id="saveButton" type="submit">Save record</button>
+                        <button class="govuk-button govuk-button--secondary" id="cancelEdit" type="button">Cancel edit</button>
+                    </div>
+                </form>
+
+                <div class="govuk-form-group">
+                    <h2 class="govuk-heading-m">Existing records</h2>
+                    <table class="record-table" aria-describedby="recordCount">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>DOB</th>
+                                <th>Nationality</th>
+                                <th>Status</th>
+                                <th>Passport</th>
+                                <th>Photo</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Actions</th>
+                                <th>PDF</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recordsBody"></tbody>
+                    </table>
+                    <p id="recordCount" class="govuk-body-s"></p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script type="module" src="assets/admin.js"></script>
+</body>
+</html>
