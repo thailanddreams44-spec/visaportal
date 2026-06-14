@@ -1,9 +1,9 @@
 # Netlify Deployment Guide
 
 ## What's Deployed
-- **Backend API:** https://visaportal-onrender.com (Node.js/Express on Render)
+- **Backend API:** https://visaportal.onrender.com (Node.js/Express on Render)
 - **Frontend:** Will be hosted on Netlify (static files)
-- **Configuration:** API_BASE is hardcoded to `https://visaportal-onrender.com` in index.html
+- **Configuration:** API_BASE is hardcoded to `https://visaportal.onrender.com` in index.html
 
 ## Step 1: Create Netlify Account
 1. Go to **https://netlify.com**

@@ -1,6 +1,6 @@
 # Client-Side Deployment Guide
 
-The front-end is configured to use the production server at: **`https://visaportal-onrender.com`**
+The front-end is configured to use the production server at: **`https://visaportal.onrender.com`**
 
 ## Files to Deploy
 

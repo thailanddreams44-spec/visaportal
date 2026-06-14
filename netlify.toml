@@ -3,7 +3,7 @@
   command = "echo 'Static site - no build needed'"
 
 [context.production]
-  environment = { API_URL = "https://visaportal-onrender.com" }
+  environment = { API_URL = "https://visaportal.onrender.com" }
 
 [[redirects]]
   from = "/*"
