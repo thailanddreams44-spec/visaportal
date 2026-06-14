@@ -1,1 +1,4 @@
+.env
+service-account-key.json
+node_modules/node_modules
 node_modules
