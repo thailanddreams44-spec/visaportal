@@ -12,7 +12,9 @@ const firebaseConfig = {
   appId: "1:359907899762:web:a0da526c31adb0f18245eb"
 };
 
-const API_BASE_URL = "http://127.0.0.1:3000";
+const API_BASE_URL = (typeof window !== 'undefined' && window.location && window.location.origin)
+  ? window.location.origin
+  : 'http://127.0.0.1:3000';
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const collectionName = "visaAdminRecords";
