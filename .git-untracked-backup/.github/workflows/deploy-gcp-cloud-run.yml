@@ -1,0 +1,71 @@
+name: Build and Deploy to GCP Cloud Run
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+          project_id: ${{ secrets.GCP_PROJECT }}
+
+      - name: Authenticate gcloud service account
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          echo "$GCP_SA_KEY" > /tmp/gcloud-key.json
+          gcloud auth activate-service-account --key-file=/tmp/gcloud-key.json --project="${{ secrets.GCP_PROJECT }}"
+          gcloud config set project "${{ secrets.GCP_PROJECT }}"
+
+      - name: Enable required GCP APIs
+        run: |
+          gcloud services enable artifactregistry.googleapis.com || echo "Artifact Registry API already enabled or requires manual enablement"
+          gcloud services enable run.googleapis.com || echo "Cloud Run API already enabled or requires manual enablement"
+          gcloud services enable cloudbuild.googleapis.com || echo "Cloud Build API already enabled or requires manual enablement"
+        continue-on-error: true
+
+      - name: Ensure Artifact Registry repo exists
+        run: |
+          REGION=${{ secrets.GCP_REGION }}
+          PROJECT=${{ secrets.GCP_PROJECT }}
+          REPO=akash-clone
+          if ! gcloud artifacts repositories describe "$REPO" --location="$REGION" > /dev/null 2>&1; then
+            gcloud artifacts repositories create "$REPO" --repository-format=docker --location="$REGION" --description="Docker repo for akash-clone"
+          else
+            echo "Artifact Registry repo $REPO already exists"
+          fi
+
+      - name: Configure Docker to use gcloud credential helper
+        run: gcloud auth configure-docker "${{ secrets.GCP_REGION }}-docker.pkg.dev" --quiet
+
+      - name: Build and push image to Artifact Registry
+        run: |
+          REGION=${{ secrets.GCP_REGION }}
+          PROJECT=${{ secrets.GCP_PROJECT }}
+          REPO=akash-clone
+          IMAGE="${REGION}-docker.pkg.dev/${PROJECT}/${REPO}/akash-clone:${GITHUB_SHA::8}"
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+
+      - name: Deploy to Cloud Run
+        run: |
+          IMAGE="$IMAGE"
+          SERVICE_ACCOUNT_JSON_B64=$(printf '%s' "${{ secrets.SERVICE_ACCOUNT_JSON }}" | base64 -w0)
+          gcloud run deploy "${{ secrets.CLOUD_RUN_SERVICE }}" \
+            --image="$IMAGE" \
+            --region="${{ secrets.GCP_REGION }}" \
+            --project="${{ secrets.GCP_PROJECT }}" \
+            --platform=managed \
+            --allow-unauthenticated \
+            --set-env-vars=SERVICE_ACCOUNT_JSON="$SERVICE_ACCOUNT_JSON_B64",RESEND_API_KEY="${{ secrets.RESEND_API_KEY }}",R2_ACCOUNT_ID="${{ secrets.R2_ACCOUNT_ID }}",R2_ACCESS_KEY_ID="${{ secrets.R2_ACCESS_KEY_ID }}",R2_SECRET_ACCESS_KEY="${{ secrets.R2_SECRET_ACCESS_KEY }}",R2_BUCKET_NAME="${{ secrets.R2_BUCKET_NAME }}" \
+            --quiet

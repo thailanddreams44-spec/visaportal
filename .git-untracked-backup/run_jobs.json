@@ -1,0 +1,121 @@
+{
+  "total_count": 1,
+  "jobs": [
+    {
+      "id": 81287219773,
+      "run_id": 27502287958,
+      "workflow_name": "Build and Publish Docker image to GHCR",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/thailanddreams44-spec/visaportal/actions/runs/27502287958",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOS6UWIs8AAAAS7RiKPQ",
+      "head_sha": "bd0cee12ead3575ef74307a110874be842864910",
+      "url": "https://api.github.com/repos/thailanddreams44-spec/visaportal/actions/jobs/81287219773",
+      "html_url": "https://github.com/thailanddreams44-spec/visaportal/actions/runs/27502287958/job/81287219773",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-06-14T14:44:41Z",
+      "started_at": "2026-06-14T14:44:42Z",
+      "completed_at": "2026-06-14T14:45:10Z",
+      "name": "build-and-push",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-06-14T14:44:43Z",
+          "completed_at": "2026-06-14T14:44:45Z"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-06-14T14:44:45Z",
+          "completed_at": "2026-06-14T14:44:45Z"
+        },
+        {
+          "name": "Set up QEMU",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-06-14T14:44:45Z",
+          "completed_at": "2026-06-14T14:44:48Z"
+        },
+        {
+          "name": "Set up Docker Buildx",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-06-14T14:44:48Z",
+          "completed_at": "2026-06-14T14:44:51Z"
+        },
+        {
+          "name": "Log in to GHCR",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-06-14T14:44:51Z",
+          "completed_at": "2026-06-14T14:44:51Z"
+        },
+        {
+          "name": "Build and push image",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-06-14T14:44:51Z",
+          "completed_at": "2026-06-14T14:45:07Z"
+        },
+        {
+          "name": "Post Build and push image",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-06-14T14:45:07Z",
+          "completed_at": "2026-06-14T14:45:07Z"
+        },
+        {
+          "name": "Post Log in to GHCR",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-06-14T14:45:07Z",
+          "completed_at": "2026-06-14T14:45:07Z"
+        },
+        {
+          "name": "Post Set up Docker Buildx",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-06-14T14:45:07Z",
+          "completed_at": "2026-06-14T14:45:08Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-06-14T14:45:08Z",
+          "completed_at": "2026-06-14T14:45:08Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-06-14T14:45:08Z",
+          "completed_at": "2026-06-14T14:45:08Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/thailanddreams44-spec/visaportal/check-runs/81287219773",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000000054,
+      "runner_name": "GitHub Actions 1000000054",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}

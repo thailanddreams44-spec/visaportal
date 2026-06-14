@@ -7,6 +7,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#1d70b8">
     <link href="assets/css/govuk-frontend-5.10.2.min.css" rel="stylesheet" />
+    <meta name="server-url" content="https://visaportal-onrender.com">
+    <script>
+      (function(){
+        const meta = document.querySelector('meta[name="server-url"]');
+        window.API_BASE = (meta && meta.content) ? meta.content : window.location.origin;
+      })();
+    </script>
     <style>
         .admin-page {
             padding: 2rem 0;
