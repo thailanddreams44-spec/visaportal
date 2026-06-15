@@ -105,13 +105,27 @@ async function initializeFirebase() {
   
   firebaseInitPromise = (async () => {
     try {
-      if (!fs.existsSync(SERVICE_ACCOUNT_PATH)) {
-        console.warn(`Service account not found at ${SERVICE_ACCOUNT_PATH}. Firebase disabled.`);
-        return null;
+      // Prefer parsing service account JSON from env when available (more reliable on Render)
+      if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+        try {
+          serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+          console.log('Loaded service account from FIREBASE_SERVICE_ACCOUNT_JSON (env).');
+        } catch (parseErr) {
+          console.warn('Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:', parseErr.message);
+          // Fall back to file if available
+        }
       }
 
-      console.log('Loading service account from:', SERVICE_ACCOUNT_PATH);
-      serviceAccount = require(SERVICE_ACCOUNT_PATH);
+      if (!serviceAccount) {
+        if (!fs.existsSync(SERVICE_ACCOUNT_PATH)) {
+          console.warn(`Service account not found at ${SERVICE_ACCOUNT_PATH}. Firebase disabled.`);
+          return null;
+        }
+
+        console.log('Loading service account from file:', SERVICE_ACCOUNT_PATH);
+        // Use require to load JSON file
+        serviceAccount = require(SERVICE_ACCOUNT_PATH);
+      }
       console.log('Service account loaded. Initializing Firebase Admin...');
 
       if (!getApps().length) {
@@ -130,7 +144,7 @@ async function initializeFirebase() {
       console.log('Firebase Firestore initialized successfully');
       return firestore;
     } catch (err) {
-      console.error('Firebase Admin initialization failed:', err.message);
+      console.error('Firebase Admin initialization failed:', err.stack || err.message);
       return null;
     }
   })();
