@@ -82,45 +82,46 @@ const R2_BUCKET = R2_BUCKET_NAME;
 let firestore = null;
 let serviceAccount = null;
 let adminApp = null;
+let firebaseInitPromise = null;
 
-try {
-  if (!fs.existsSync(SERVICE_ACCOUNT_PATH)) {
-    throw new Error(`Missing service account JSON at ${SERVICE_ACCOUNT_PATH}`);
-  }
-
-  console.log('Loading service account from:', SERVICE_ACCOUNT_PATH);
-  serviceAccount = require(SERVICE_ACCOUNT_PATH);
-  console.log('Service account loaded. Initializing Firebase Admin...');
-
-  if (!getApps().length) {
-    adminApp = initializeApp({
-      credential: cert(serviceAccount),
-      projectId: serviceAccount.project_id,
-    });
-    console.log('Firebase app initialized');
-    console.log('Firebase project:', serviceAccount.project_id);
-    console.log('Firebase client email:', serviceAccount.client_email);
-  } else {
-    adminApp = getApps()[0];
-    console.log('Firebase app already initialized, using existing app:', adminApp.name);
-  }
-
-  firestore = getFirestore(adminApp);
-  console.log('Firebase Firestore initialized successfully');
-} catch (err) {
-  if (err.code === 'app/duplicate-app') {
-    console.log('Firebase app already initialized, using existing instance');
+// Lazy-load Firebase Admin on first request (faster startup for Render)
+async function initializeFirebase() {
+  if (firestore) return firestore; // Already initialized
+  if (firebaseInitPromise) return firebaseInitPromise; // Initialization in progress
+  
+  firebaseInitPromise = (async () => {
     try {
-      firestore = getFirestore();
+      if (!fs.existsSync(SERVICE_ACCOUNT_PATH)) {
+        console.warn(`Service account not found at ${SERVICE_ACCOUNT_PATH}. Firebase disabled.`);
+        return null;
+      }
+
+      console.log('Loading service account from:', SERVICE_ACCOUNT_PATH);
+      serviceAccount = require(SERVICE_ACCOUNT_PATH);
+      console.log('Service account loaded. Initializing Firebase Admin...');
+
+      if (!getApps().length) {
+        adminApp = initializeApp({
+          credential: cert(serviceAccount),
+          projectId: serviceAccount.project_id,
+        });
+        console.log('Firebase app initialized');
+        console.log('Firebase project:', serviceAccount.project_id);
+      } else {
+        adminApp = getApps()[0];
+        console.log('Firebase app already initialized');
+      }
+
+      firestore = getFirestore(adminApp);
       console.log('Firebase Firestore initialized successfully');
-    } catch (e) {
-      console.error('Failed to get Firestore from existing app:', e.message);
+      return firestore;
+    } catch (err) {
+      console.error('Firebase Admin initialization failed:', err.message);
+      return null;
     }
-  } else {
-    console.error('Firebase Admin initialization failed:', err.message);
-    console.error('Service account path:', SERVICE_ACCOUNT_PATH);
-    console.error('Stack:', err.stack);
-  }
+  })();
+
+  return firebaseInitPromise;
 }
 
 // Simple local OTP store (no external service account required)
@@ -163,13 +164,14 @@ function deleteOtpFor(passportNumber, dob) {
 }
 
 async function getRecordEmail(passportNumber, dob) {
-  // ALWAYS require Firestore lookup - no fallback to client-provided email
-  if (!firestore) {
+  // Initialize Firebase on first call
+  const fs = await initializeFirebase();
+  if (!fs) {
     throw new Error('Firestore not initialized. Cannot verify record.');
   }
   
   try {
-    const recordsRef = firestore.collection('visaAdminRecords');
+    const recordsRef = fs.collection('visaAdminRecords');
     const query = recordsRef
       .where('passportNumber', '==', passportNumber)
       .where('dob', '==', dob)
@@ -194,11 +196,12 @@ function ensureR2Config() {
 
 app.get("/api/admin-records", async (req, res) => {
   try {
-    if (!firestore) {
+    const fs = await initializeFirebase();
+    if (!fs) {
       return res.status(500).json({ success: false, message: 'Firestore is not initialized.' });
     }
 
-    const recordsRef = firestore.collection('visaAdminRecords');
+    const recordsRef = fs.collection('visaAdminRecords');
     const querySnapshot = await recordsRef.orderBy('name').get();
     const records = querySnapshot.docs.map(docItem => ({ id: docItem.id, ...docItem.data() }));
     return res.json({ success: true, records });
@@ -218,6 +221,9 @@ app.get("/api/admin-records", async (req, res) => {
 });
 
 async function getFirestoreAccessToken() {
+  // Ensure Firebase is initialized
+  await initializeFirebase();
+  
   if (!serviceAccount) {
     throw new Error('Service account credentials are not loaded. Cannot obtain Firestore access token.');
   }
@@ -326,11 +332,12 @@ app.get('/api/render-pdf', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Missing record id.' });
     }
 
-    if (!firestore) {
+    const fs_inst = await initializeFirebase();
+    if (!fs_inst) {
       return res.status(500).json({ success: false, message: 'Firestore is not initialized.' });
     }
 
-    const recordRef = firestore.collection('visaAdminRecords').doc(recordId);
+    const recordRef = fs_inst.collection('visaAdminRecords').doc(recordId);
     const recordSnap = await recordRef.get();
     if (!recordSnap.exists) {
       return res.status(404).json({ success: false, message: 'Record not found.' });
