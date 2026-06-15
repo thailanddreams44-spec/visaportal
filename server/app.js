@@ -43,10 +43,24 @@ const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'visaportal-55200
 const SERVICE_ACCOUNT_PATH = path.join(__dirname, '..', 'service-account.json');
 
 const app = express();
+const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+app.use(cors({
+  origin: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..')));
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', env: process.env.NODE_ENV || 'development', port: PORT });
+});
+
+app.get('/api/ping', (req, res) => {
+  res.json({ success: true, message: 'pong' });
+});
 
 const R2_ACCOUNT_ID = "3e6d434d8424565348aeed8b0adb113e"
 const R2_ACCESS_KEY_ID = "ee7f9d024a252eacabe55eaedc7f763c"
@@ -699,6 +713,6 @@ app.post("/api/send-sharecode-email", async (req, res) => {
   }
 });
 
-app.listen(3000, () => {
-    console.log("Server running on port 3000");
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on port ${PORT}`);
 });

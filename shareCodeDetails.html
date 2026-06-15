@@ -548,7 +548,9 @@
     <script
         src="https://user-auth.apply-to-visit-or-stay-in-the-uk.homeoffice.gov.uk/auth/resources/7t40d/login/eua-gds-rebrand/js/govuk-frontend-5.10.2.min.js"></script>
     <script>
-        window.GOVUKFrontend.initAll()
+        if (window.GOVUKFrontend && typeof window.GOVUKFrontend.initAll === 'function') {
+            window.GOVUKFrontend.initAll();
+        }
     </script>
 
 </body>
