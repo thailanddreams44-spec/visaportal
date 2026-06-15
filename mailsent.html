@@ -239,10 +239,30 @@
                                 We have sent you a single-use, 6-digit security code by email to:
                             </div>
                             
-                            <div class="govuk-label govuk-label--l">n***********s@gmail.com</div>
+                            <div id="mailsentEmailDisplay" class="govuk-label govuk-label--l">n***********s@gmail.com</div>
                             <div id="dob-hint" class="govuk-hint">
                                 It may take a few minutes to arrive. You need to use this code within 10 minutes or it will expire.
                             </div>
+                            <script>
+                              function maskEmail(email) {
+                                const [name, domain] = email.split("@");
+                                if (!name || !domain) return email;
+                                if (name.length <= 2) {
+                                  return name[0] + "*" + "@" + domain;
+                                }
+                                const first = name[0];
+                                const last = name[name.length - 1];
+                                const stars = "*".repeat(Math.min(5, name.length - 2));
+                                return `${first}${stars}${last}@${domain}`;
+                              }
+
+                              document.addEventListener("DOMContentLoaded", function () {
+                                const userEmail = sessionStorage.getItem("userEmail") || localStorage.getItem("userEmail");
+                                if (userEmail) {
+                                  document.getElementById("mailsentEmailDisplay").textContent = maskEmail(userEmail);
+                                }
+                              });
+                            </script>
                             <form id="passwordless-login-form" class=" form" novalidate method="post">
                                 <div class="govuk-form-group">
                                     <h1 class="govuk-label-wrapper">

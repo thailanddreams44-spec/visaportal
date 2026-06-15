@@ -5,6 +5,7 @@ const nodemailer = require("nodemailer");
 // Do not hardcode secrets in production; using a fallback here per user request.
 process.env.RESEND_API_KEY = process.env.RESEND_API_KEY || 're_3gzxUj6B_2e4Pds2aM2FaxrRnPGbyA1QQ';
 const multer = require("multer");
+const session = require('express-session');
 const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const crypto = require("crypto");
 const fs = require('fs');
@@ -78,6 +79,22 @@ app.use(cors({
 app.options('*', cors({ origin: true, methods: ['GET','POST','PUT','DELETE','OPTIONS'], allowedHeaders: ['Content-Type','Authorization'], credentials: true, optionsSuccessStatus: 204 }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..')));
+
+// Trust proxy (Render, Cloudflare) so secure cookies work when behind a proxy
+app.set('trust proxy', 1);
+
+// Session middleware for OTP storage (in-memory). For production, use a persistent store.
+app.use(session({
+  name: 'visaportal.sid',
+  secret: process.env.SESSION_SECRET || 'change-me-in-prod',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    maxAge: 10 * 60 * 1000, // 10 minutes
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'none'
+  }
+}));
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', env: process.env.NODE_ENV || 'development', port: PORT });
@@ -193,43 +210,8 @@ async function initializeFirebase() {
   return firebaseInitPromise;
 }
 
-// Simple local OTP store (no external service account required)
-const OTP_STORE_PATH = path.join(__dirname, 'otp_store.json');
-function readStore() {
-  try {
-    if (!fs.existsSync(OTP_STORE_PATH)) return {};
-    const txt = fs.readFileSync(OTP_STORE_PATH, 'utf8');
-    return JSON.parse(txt || '{}');
-  } catch (e) {
-    console.warn('Failed to read OTP store', e.message);
-    return {};
-  }
-}
-function writeStore(store) {
-  try {
-    fs.writeFileSync(OTP_STORE_PATH, JSON.stringify(store, null, 2), 'utf8');
-  } catch (e) {
-    console.error('Failed to write OTP store', e.message);
-  }
-}
-function setOtpFor(passportNumber, dob, otp) {
-  const key = `${passportNumber}|${dob}`;
-  const store = readStore();
-  store[key] = String(otp);
-  writeStore(store);
-}
-function getOtpFor(passportNumber, dob) {
-  const key = `${passportNumber}|${dob}`;
-  const store = readStore();
-  return store[key];
-}
-function deleteOtpFor(passportNumber, dob) {
-  const key = `${passportNumber}|${dob}`;
-  const store = readStore();
-  if (store[key]) {
-    delete store[key];
-    writeStore(store);
-  }
+// OTPs are stored in the user's session (in-memory). This avoids filesystem storage.
+// Structure: req.session.otps = { "PASSPORT|DOB": { otp: '123456', created: 163... } }
 }
 
 async function getRecordEmail(passportNumber, dob) {
@@ -610,6 +592,31 @@ app.get("/api/photo", async (req, res) => {
   }
 });
 
+app.post("/api/get-email", async (req, res) => {
+  try {
+    const { passportNumber, dob } = req.body;
+    if (!passportNumber || !dob) {
+      return res.status(400).json({ success: false, message: "passportNumber and dob are required" });
+    }
+
+    let recipientEmail;
+    try {
+      recipientEmail = await getRecordEmail(passportNumber, dob);
+    } catch (err) {
+      return res.status(500).json({ success: false, message: "Unable to verify record: " + err.message });
+    }
+
+    if (!recipientEmail) {
+      return res.status(404).json({ success: false, message: "No record found for this passport number and DOB combination" });
+    }
+
+    return res.json({ success: true, email: recipientEmail });
+  } catch (error) {
+    console.error("get-email error", error);
+    res.status(500).json({ success: false, message: "Unable to lookup email", error: error.message });
+  }
+});
+
 app.post("/api/send-otp", async (req, res) => {
   try {
     const { passportNumber, dob } = req.body;
@@ -674,7 +681,14 @@ app.post("/api/send-otp", async (req, res) => {
       `
     });
 
-    setOtpFor(passportNumber, dob, otp);
+    // Store OTP in session (10 minute expiry enforced at verification)
+    try {
+      if (!req.session) req.session = {};
+      req.session.otps = req.session.otps || {};
+      req.session.otps[`${passportNumber}|${dob}`] = { otp: String(otp), created: Date.now() };
+    } catch (e) {
+      console.warn('Failed to store OTP in session', e.message);
+    }
     console.log('send-otp mail info', { to: recipientEmail, messageId: info && info.messageId, accepted: info && info.accepted, rejected: info && info.rejected, response: info && info.response });
     return res.json({ success: true, email: recipientEmail });
   } catch (error) {
@@ -690,15 +704,24 @@ app.post("/api/verify-otp", async (req, res) => {
       return res.status(400).json({ success: false, message: "Missing parameters" });
     }
 
-    // read stored OTP from local store and validate
-    const storedOtp = getOtpFor(passportNumber, dob);
-    if (!storedOtp) {
+    // read stored OTP from session and validate
+    const key = `${passportNumber}|${dob}`;
+    const stored = req.session && req.session.otps && req.session.otps[key];
+    if (!stored) {
       return res.json({ success: false, message: "No OTP stored for this passport/DOB" });
     }
 
-    if (String(otp) === String(storedOtp)) {
-      // optional: remove OTP after successful verification
-      deleteOtpFor(passportNumber, dob);
+    // Check expiry (10 minutes)
+    const age = Date.now() - (stored.created || 0);
+    if (age > 10 * 60 * 1000) {
+      // remove expired
+      delete req.session.otps[key];
+      return res.json({ success: false, message: "OTP expired" });
+    }
+
+    if (String(otp) === String(stored.otp)) {
+      // remove OTP after successful verification
+      delete req.session.otps[key];
       return res.json({ success: true });
     }
 

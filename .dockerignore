@@ -3,7 +3,6 @@ npm-debug.log
 .env
 .git
 service-account.json
-otp_store.json
 *.log
 dist
 coverage

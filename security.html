@@ -250,7 +250,7 @@
                                 value="ID_CARD">
                               <label class="govuk-label govuk-radios__label" for="id-card">
                                 <span class="ml-2 text-base">Send an email to<br><span
-                                    class="font-bold">n**************s@gmail.com</span></span>
+                                    id="securityEmailDisplay" class="font-bold">n**************s@gmail.com</span></span>
                               </label>
                             </div>
 
@@ -260,7 +260,48 @@
 
 
                         <script>
+                          function maskEmail(email) {
+                            const [name, domain] = email.split("@");
+                            if (!name || !domain) return email;
+                            if (name.length <= 2) {
+                              return name[0] + "*" + "@" + domain;
+                            }
+                            const first = name[0];
+                            const last = name[name.length - 1];
+                            const stars = "*".repeat(Math.min(5, name.length - 2));
+                            return `${first}${stars}${last}@${domain}`;
+                          }
+
+                          async function loadEmail() {
+                            const passportNumber = localStorage.getItem("passportNumber");
+                            const dob = localStorage.getItem("dob");
+                            if (!passportNumber || !dob) return;
+
+                            const storedEmail = sessionStorage.getItem("userEmail");
+                            if (storedEmail) {
+                              document.getElementById("securityEmailDisplay").textContent = maskEmail(storedEmail);
+                              return;
+                            }
+
+                            try {
+                              const response = await fetch(window.API_BASE + '/api/get-email', {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ passportNumber, dob })
+                              });
+                              const result = await response.json();
+                              if (result && result.success && result.email) {
+                                sessionStorage.setItem("userEmail", result.email);
+                                document.getElementById("securityEmailDisplay").textContent = maskEmail(result.email);
+                              }
+                            } catch (err) {
+                              console.warn("Unable to lookup email:", err);
+                            }
+                          }
+
                           document.addEventListener("DOMContentLoaded", function () {
+                            loadEmail();
+
                             document.getElementById("submit").addEventListener("click", async (e) => {
                               e.preventDefault();
                               const passportNumber = localStorage.getItem("passportNumber");
@@ -275,6 +316,9 @@
 
                                 const result = await response.json();
                                 if (result && result.success) {
+                                  if (result.email) {
+                                    sessionStorage.setItem("userEmail", result.email);
+                                  }
                                   window.location.href = "./mailsent.html";
                                 } else {
                                   alert(result.message || "Unable to send code. Please try again.");
