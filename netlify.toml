@@ -19,3 +19,8 @@
   for = "/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000"
+
+# Firebase API key is public and meant to be exposed in client-side code
+# Omit from secrets scanning to allow the build to proceed
+[build.environment]
+  SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES = "AIzaSyCBDESuLDHbqKb-g2mSPKrnxmM6Cl1lQEw"
