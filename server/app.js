@@ -75,8 +75,6 @@ app.use(cors({
   credentials: true,
 }));
 
-// Ensure preflight OPTIONS requests are handled explicitly in production
-app.options('*', cors({ origin: true, methods: ['GET','POST','PUT','DELETE','OPTIONS'], allowedHeaders: ['Content-Type','Authorization'], credentials: true, optionsSuccessStatus: 204 }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..')));
 
@@ -88,11 +86,11 @@ app.use(session({
   name: 'visaportal.sid',
   secret: process.env.SESSION_SECRET || 'change-me-in-prod',
   resave: false,
-  saveUninitialized: false,
+  saveUninitialized: true,
   cookie: {
     maxAge: 10 * 60 * 1000, // 10 minutes
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'none'
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
   }
 }));
 
@@ -693,6 +691,10 @@ app.post("/api/send-otp", async (req, res) => {
       if (!req.session) req.session = {};
       req.session.otps = req.session.otps || {};
       req.session.otps[`${passportNumber}|${dob}`] = { otp: String(otp), created: Date.now() };
+      // Explicitly save session to ensure OTP is stored
+      req.session.save((err) => {
+        if (err) console.warn('Session save error:', err.message);
+      });
     } catch (e) {
       console.warn('Failed to store OTP in session', e.message);
     }
@@ -713,8 +715,10 @@ app.post("/api/verify-otp", async (req, res) => {
 
     // read stored OTP from session and validate
     const key = `${passportNumber}|${dob}`;
+    console.log('verify-otp debug', { key, sessionExists: !!req.session, otpsExists: !!(req.session && req.session.otps), storedOtps: req.session && req.session.otps });
     const stored = req.session && req.session.otps && req.session.otps[key];
     if (!stored) {
+      console.log('verify-otp failed: No OTP stored for key:', key);
       return res.json({ success: false, message: "No OTP stored for this passport/DOB" });
     }
 
