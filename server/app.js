@@ -38,6 +38,17 @@ if (fs.existsSync(ENV_FILE_PATH)) {
   console.log('No .env file found at', ENV_FILE_PATH);
 }
 
+  // If a service account JSON is provided via environment (Render secret), write it
+  // to the expected service-account.json path so Firebase can initialize normally.
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+    try {
+      fs.writeFileSync(SERVICE_ACCOUNT_PATH, process.env.FIREBASE_SERVICE_ACCOUNT_JSON, { mode: 0o600 });
+      console.log('Wrote service account JSON from FIREBASE_SERVICE_ACCOUNT_JSON to', SERVICE_ACCOUNT_PATH);
+    } catch (e) {
+      console.error('Failed to write service account JSON from env:', e.message);
+    }
+  }
+
 const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY || 'AIzaSyCBDESuLDHbqKb-g2mSPKrnxmM6Cl1lQEw';
 const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'visaportal-55200';
 const SERVICE_ACCOUNT_PATH = path.join(__dirname, '..', 'service-account.json');
@@ -51,6 +62,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
 }));
+
+// Ensure preflight OPTIONS requests are handled explicitly in production
+app.options('*', cors({ origin: true, methods: ['GET','POST','PUT','DELETE','OPTIONS'], allowedHeaders: ['Content-Type','Authorization'], credentials: true, optionsSuccessStatus: 204 }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..')));
 
