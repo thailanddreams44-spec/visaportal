@@ -76,6 +76,26 @@ app.get('/api/ping', (req, res) => {
   res.json({ success: true, message: 'pong' });
 });
 
+// Temporary debug endpoint to inspect Firebase/service-account availability
+app.get('/debug/firebase', async (req, res) => {
+  try {
+    const fileExists = fs.existsSync(SERVICE_ACCOUNT_PATH);
+    const envPresent = !!process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    let envLength = envPresent ? process.env.FIREBASE_SERVICE_ACCOUNT_JSON.length : 0;
+    let parsed = null;
+    let parseError = null;
+    if (envPresent) {
+      try { parsed = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON); } catch (e) { parseError = e.message; }
+    }
+
+    const init = await initializeFirebase();
+    const initialized = !!init;
+    return res.json({ fileExists, envPresent, envLength, parseError, initialized });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || err.stack });
+  }
+});
+
 const R2_ACCOUNT_ID = "3e6d434d8424565348aeed8b0adb113e"
 const R2_ACCESS_KEY_ID = "ee7f9d024a252eacabe55eaedc7f763c"
 const R2_SECRET_ACCESS_KEY = "edd2b4a476eb60f9d13efa9e389cb1554c19c245b343ad9b0bc3e4a6d9c12a54"
