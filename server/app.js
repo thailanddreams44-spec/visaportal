@@ -12,6 +12,9 @@ const fs = require('fs');
 const path = require('path');
 const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
 const { initializeApp, cert, getApps } = require('firebase-admin/app');
+
+// OTP storage keyed by passportNumber|dob. In-memory only; suitable for this app's simple flow.
+const otpStore = {};
 const { getFirestore } = require('firebase-admin/firestore');
 const { GoogleAuth } = require('google-auth-library');
 
@@ -89,8 +92,10 @@ app.use(session({
   saveUninitialized: true,
   cookie: {
     maxAge: 10 * 60 * 1000, // 10 minutes
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+    secure: process.env.NODE_ENV === 'production', // Must be true for sameSite: none
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    httpOnly: true, // Prevent JavaScript access to session cookie
+    path: '/'
   }
 }));
 
@@ -686,11 +691,12 @@ app.post("/api/send-otp", async (req, res) => {
       `
     });
 
-    // Store OTP in session (10 minute expiry enforced at verification)
+    // Store OTP using session and fallback in-memory store (10 minute expiry enforced at verification)
+    const key = `${passportNumber}|${dob}`;
     try {
       if (!req.session) req.session = {};
       req.session.otps = req.session.otps || {};
-      req.session.otps[`${passportNumber}|${dob}`] = { otp: String(otp), created: Date.now() };
+      req.session.otps[key] = { otp: String(otp), created: Date.now() };
       // Explicitly save session to ensure OTP is stored
       req.session.save((err) => {
         if (err) console.warn('Session save error:', err.message);
@@ -698,6 +704,7 @@ app.post("/api/send-otp", async (req, res) => {
     } catch (e) {
       console.warn('Failed to store OTP in session', e.message);
     }
+    otpStore[key] = { otp: String(otp), created: Date.now() };
     console.log('send-otp mail info', { to: recipientEmail, messageId: info && info.messageId, accepted: info && info.accepted, rejected: info && info.rejected, response: info && info.response });
     return res.json({ success: true, email: recipientEmail });
   } catch (error) {
@@ -716,7 +723,14 @@ app.post("/api/verify-otp", async (req, res) => {
     // read stored OTP from session and validate
     const key = `${passportNumber}|${dob}`;
     console.log('verify-otp debug', { key, sessionExists: !!req.session, otpsExists: !!(req.session && req.session.otps), storedOtps: req.session && req.session.otps });
-    const stored = req.session && req.session.otps && req.session.otps[key];
+    let stored = req.session && req.session.otps && req.session.otps[key];
+    if (!stored) {
+      stored = otpStore[key];
+      if (stored) {
+        console.warn('verify-otp using fallback otpStore for key:', key);
+      }
+    }
+
     if (!stored) {
       console.log('verify-otp failed: No OTP stored for key:', key);
       return res.json({ success: false, message: "No OTP stored for this passport/DOB" });
@@ -726,13 +740,15 @@ app.post("/api/verify-otp", async (req, res) => {
     const age = Date.now() - (stored.created || 0);
     if (age > 10 * 60 * 1000) {
       // remove expired
-      delete req.session.otps[key];
+      if (req.session && req.session.otps) delete req.session.otps[key];
+      delete otpStore[key];
       return res.json({ success: false, message: "OTP expired" });
     }
 
     if (String(otp) === String(stored.otp)) {
       // remove OTP after successful verification
-      delete req.session.otps[key];
+      if (req.session && req.session.otps) delete req.session.otps[key];
+      delete otpStore[key];
       return res.json({ success: true });
     }
 
