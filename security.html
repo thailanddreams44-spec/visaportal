@@ -151,7 +151,7 @@
   <header class="govuk-header" data-module="govuk-header">
     <div class="govuk-header__container govuk-width-container">
       <div class="govuk-header__logo">
-        <a href="https://www.gov.uk/" class="govuk-header__link govuk-header__link--homepage">
+        <a href="./index.html" class="govuk-header__link govuk-header__link--homepage">
           <svg focusable="false" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 324 60" height="30"
             width="162" fill="currentcolor" class="govuk-header__logotype" aria-label="GOV.UK">
             <title>GOV.UK</title>
@@ -262,13 +262,11 @@
                         <script>
                           function maskEmail(email) {
                             const [name, domain] = email.split("@");
-                            if (!name || !domain) return email;
-                            if (name.length <= 2) {
-                              return name[0] + "*" + "@" + domain;
-                            }
+
                             const first = name[0];
                             const last = name[name.length - 1];
-                            const stars = "*".repeat(Math.min(5, name.length - 2));
+                            const stars = "*".repeat(name.length - 2);
+
                             return `${first}${stars}${last}@${domain}`;
                           }
 
@@ -365,7 +363,7 @@
 
                       <div class="govuk-inset-text">
                         Need help? <a class="govuk-link"
-                          href="https://www.gov.uk/contact-ukvi-inside-outside-uk">Contact us</a>
+                          href="./index.html">Contact us</a>
                       </div>
 
 
@@ -454,7 +452,7 @@
 
             <li class="govuk-footer__inline-list-item">
               <a class="govuk-footer__link"
-                href="https://www.gov.uk/government/publications/ukvi-account-terms-and-conditions">
+                href="./index.html">
                 Account terms and conditions
               </a>
             </li>
@@ -472,14 +470,14 @@
 
             All content is available under the
             <a class="govuk-footer__link"
-              href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" rel="license">Open
+              href="./index.html" rel="license">Open
               Government Licence v3.0</a>, except where otherwise stated
 
           </span>
         </div>
         <div class="govuk-footer__meta-item">
           <a class="govuk-footer__link govuk-footer__copyright-logo"
-            href="https://www.nationalarchives.gov.uk/information-management/re-using-public-sector-information/uk-government-licensing-framework/crown-copyright/">
+            href="./index.html">
 
             © Crown copyright
 
