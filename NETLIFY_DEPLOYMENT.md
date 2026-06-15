@@ -1,9 +1,9 @@
 # Netlify Deployment Guide
 
 ## What's Deployed
-- **Backend API:** https://visaportal.onrender.com (Node.js/Express on Render)
+- **Backend API:** https://visaportal-dl1j.onrender.com (Node.js/Express on Render)
 - **Frontend:** Will be hosted on Netlify (static files)
-- **Configuration:** API_BASE is hardcoded to `https://visaportal.onrender.com` in index.html
+- **Configuration:** API_BASE is hardcoded to `https://visaportal-dl1j.onrender.com` in index.html
 
 ## Step 1: Create Netlify Account
 1. Go to **https://netlify.com**
@@ -43,7 +43,7 @@ After deployment, test:
    - You should see the passport document page
 
 2. **Check Developer Console** (F12 → Console)
-   - Should show: `API_BASE = https://visaportal-onrender.com`
+   - Should show: `API_BASE = https://visaportal-dl1j.onrender.com`
    - No errors about missing assets
 
 3. **Test OTP Flow**
@@ -63,7 +63,7 @@ After deployment, test:
 
 ## Expected URLs
 - **Frontend:** https://xxxxx-yyyyyyy.netlify.app (or your custom domain)
-- **Backend API:** https://visaportal-onrender.com
+- **Backend API:** https://visaportal-dl1j.onrender.com
 - **All calls from frontend → backend** via `window.API_BASE`
 
 ## Troubleshooting
@@ -85,4 +85,4 @@ After deployment, test:
 ## Quick Links
 - Netlify App: https://app.netlify.com
 - Your Site URL: (will appear after deployment)
-- Backend: https://visaportal-onrender.com
+- Backend: https://visaportal-dl1j.onrender.com

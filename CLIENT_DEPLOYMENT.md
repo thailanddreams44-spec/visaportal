@@ -1,6 +1,6 @@
 # Client-Side Deployment Guide
 
-The front-end is configured to use the production server at: **`https://visaportal.onrender.com`**
+The front-end is configured to use the production server at: **`https://visaportal-dl1j.onrender.com`**
 
 ## Files to Deploy
 
@@ -65,14 +65,14 @@ Deploy the Docker image to your server.
 After deploying, test:
 
 1. **Open index.html** – Verify the page loads without 404s for assets
-2. **Check console** – Ensure `window.API_BASE` is set to `https://visaportal-onrender.com`
+2. **Check console** – Ensure `window.API_BASE` is set to `https://visaportal-dl1j.onrender.com`
 3. **Test OTP flow** – From passport page: enter passport # → DOB → security code (should call Render server)
 4. **Test share code** – Verify email sending works (calls Render `/api/send-sharecode-email`)
 
 ## Environment Variables
 
 If your hosting requires env vars, add:
-- `SERVER_URL=https://visaportal-onrender.com` (though it's already in index.html meta tag)
+ - `SERVER_URL=https://visaportal-dl1j.onrender.com` (though it's already in index.html meta tag)
 
 ## CORS Configuration
 
