@@ -17,6 +17,7 @@ const { GoogleAuth } = require('google-auth-library');
 
 const ROOT_DIR = path.join(__dirname, '..');
 const ENV_FILE_PATH = path.join(ROOT_DIR, '.env');
+const SERVICE_ACCOUNT_PATH = path.join(__dirname, '..', 'service-account.json');
 
 if (fs.existsSync(ENV_FILE_PATH)) {
   const envText = fs.readFileSync(ENV_FILE_PATH, 'utf8');
@@ -39,31 +40,30 @@ if (fs.existsSync(ENV_FILE_PATH)) {
   console.log('No .env file found at', ENV_FILE_PATH);
 }
 
-  // If a service account JSON is provided via environment (Render secret), write it
-  // to the expected service-account.json path so Firebase can initialize normally.
-  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-    try {
-      fs.writeFileSync(SERVICE_ACCOUNT_PATH, process.env.FIREBASE_SERVICE_ACCOUNT_JSON, { mode: 0o600 });
-      console.log('Wrote service account JSON from FIREBASE_SERVICE_ACCOUNT_JSON to', SERVICE_ACCOUNT_PATH);
-    } catch (e) {
-      console.error('Failed to write service account JSON from env:', e.message);
-    }
+// If a service account JSON is provided via environment (Render secret), write it
+// to the expected service-account.json path so Firebase can initialize normally.
+if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+  try {
+    fs.writeFileSync(SERVICE_ACCOUNT_PATH, process.env.FIREBASE_SERVICE_ACCOUNT_JSON, { mode: 0o600 });
+    console.log('Wrote service account JSON from FIREBASE_SERVICE_ACCOUNT_JSON to', SERVICE_ACCOUNT_PATH);
+  } catch (e) {
+    console.error('Failed to write service account JSON from env:', e.message);
   }
+}
 
-  // Support base64-encoded service account JSON as alternative
-  if (!process.env.FIREBASE_SERVICE_ACCOUNT_JSON && process.env.FIREBASE_SERVICE_ACCOUNT_B64) {
-    try {
-      const decoded = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_B64, 'base64').toString('utf8');
-      fs.writeFileSync(SERVICE_ACCOUNT_PATH, decoded, { mode: 0o600 });
-      console.log('Wrote service account JSON from FIREBASE_SERVICE_ACCOUNT_B64 to', SERVICE_ACCOUNT_PATH);
-    } catch (e) {
-      console.error('Failed to write service account JSON from FIREBASE_SERVICE_ACCOUNT_B64:', e.message);
-    }
+// Support base64-encoded service account JSON as alternative
+if (!process.env.FIREBASE_SERVICE_ACCOUNT_JSON && process.env.FIREBASE_SERVICE_ACCOUNT_B64) {
+  try {
+    const decoded = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_B64, 'base64').toString('utf8');
+    fs.writeFileSync(SERVICE_ACCOUNT_PATH, decoded, { mode: 0o600 });
+    console.log('Wrote service account JSON from FIREBASE_SERVICE_ACCOUNT_B64 to', SERVICE_ACCOUNT_PATH);
+  } catch (e) {
+    console.error('Failed to write service account JSON from FIREBASE_SERVICE_ACCOUNT_B64:', e.message);
   }
+}
 
 const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY || 'AIzaSyCBDESuLDHbqKb-g2mSPKrnxmM6Cl1lQEw';
 const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'visaportal-55200';
-const SERVICE_ACCOUNT_PATH = path.join(__dirname, '..', 'service-account.json');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -212,27 +212,30 @@ async function initializeFirebase() {
 
 // OTPs are stored in the user's session (in-memory). This avoids filesystem storage.
 // Structure: req.session.otps = { "PASSPORT|DOB": { otp: '123456', created: 163... } }
-}
 
 async function getRecordEmail(passportNumber, dob) {
   // Initialize Firebase on first call
-  const fs = await initializeFirebase();
-  if (!fs) {
+  const firestoreDb = await initializeFirebase();
+  if (!firestoreDb) {
     throw new Error('Firestore not initialized. Cannot verify record.');
   }
-  
+
   try {
-    const recordsRef = fs.collection('visaAdminRecords');
-    const query = recordsRef
-      .where('passportNumber', '==', passportNumber)
-      .where('dob', '==', dob)
-      .limit(1);
+    const recordsRef = firestoreDb.collection('visaAdminRecords');
+    const query = recordsRef.where('passportNumber', '==', passportNumber).limit(5);
     const snapshot = await query.get();
     if (snapshot.empty) {
       return null; // Record not found
     }
-    const record = snapshot.docs[0].data();
-    return record.email || null;
+
+    for (const doc of snapshot.docs) {
+      const record = doc.data();
+      if (String(record.dob || '').trim() === String(dob || '').trim()) {
+        return record.email || null;
+      }
+    }
+
+    return null;
   } catch (err) {
     console.error('Firestore query error:', err.message);
     throw err;
@@ -556,7 +559,7 @@ app.post("/api/delete-photo", async (req, res) => {
   }
 });
 
-app.get("/api/photo", async (req, res) => {
+app.get('/api/photo', async (req, res) => {
   try {
     ensureR2Config();
     const key = req.query.key;
@@ -594,7 +597,8 @@ app.get("/api/photo", async (req, res) => {
 
 app.post("/api/get-email", async (req, res) => {
   try {
-    const { passportNumber, dob } = req.body;
+    const passportNumber = String(req.body.passportNumber || '').trim();
+    const dob = String(req.body.dob || '').trim();
     if (!passportNumber || !dob) {
       return res.status(400).json({ success: false, message: "passportNumber and dob are required" });
     }
@@ -603,6 +607,7 @@ app.post("/api/get-email", async (req, res) => {
     try {
       recipientEmail = await getRecordEmail(passportNumber, dob);
     } catch (err) {
+      console.error('get-email verify record failed', err);
       return res.status(500).json({ success: false, message: "Unable to verify record: " + err.message });
     }
 
@@ -619,7 +624,8 @@ app.post("/api/get-email", async (req, res) => {
 
 app.post("/api/send-otp", async (req, res) => {
   try {
-    const { passportNumber, dob } = req.body;
+    const passportNumber = String(req.body.passportNumber || '').trim();
+    const dob = String(req.body.dob || '').trim();
     if (!passportNumber || !dob) {
       return res.status(400).json({ success: false, message: "passportNumber and dob are required" });
     }
@@ -628,6 +634,7 @@ app.post("/api/send-otp", async (req, res) => {
     try {
       recipientEmail = await getRecordEmail(passportNumber, dob);
     } catch (err) {
+      console.error('send-otp verify record failed', err);
       return res.status(500).json({ success: false, message: "Unable to verify record: " + err.message });
     }
     

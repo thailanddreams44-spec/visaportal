@@ -256,10 +256,36 @@
                                 return `${first}${stars}${last}@${domain}`;
                               }
 
-                              document.addEventListener("DOMContentLoaded", function () {
-                                const userEmail = sessionStorage.getItem("userEmail") || localStorage.getItem("userEmail");
-                                if (userEmail) {
-                                  document.getElementById("mailsentEmailDisplay").textContent = maskEmail(userEmail);
+                              document.addEventListener("DOMContentLoaded", async function () {
+                                const display = document.getElementById("mailsentEmailDisplay");
+                                let userEmail = sessionStorage.getItem("userEmail") || localStorage.getItem("userEmail");
+
+                                if (!userEmail) {
+                                  const passportNumber = localStorage.getItem("passportNumber");
+                                  const dob = localStorage.getItem("dob");
+                                  if (passportNumber && dob) {
+                                    try {
+                                      const response = await fetch(window.API_BASE + '/api/get-email', {
+                                        method: "POST",
+                                        credentials: 'include',
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ passportNumber, dob })
+                                      });
+                                      const result = await response.json();
+                                      if (response.ok && result && result.success && result.email) {
+                                        userEmail = result.email;
+                                        sessionStorage.setItem("userEmail", userEmail);
+                                      } else {
+                                        console.warn("Email lookup failed on mailsent page:", result);
+                                      }
+                                    } catch (err) {
+                                      console.warn("Unable to lookup email on mailsent page:", err);
+                                    }
+                                  }
+                                }
+
+                                if (userEmail && display) {
+                                  display.textContent = maskEmail(userEmail);
                                 }
                               });
                             </script>
@@ -291,6 +317,7 @@
                                     try {
                                       const resp = await fetch(window.API_BASE + '/api/verify-otp', {
                                         method: "POST",
+                                        credentials: 'include',
                                         headers: { "Content-Type": "application/json" },
                                         body: JSON.stringify({ passportNumber, dob, otp: code })
                                       });
