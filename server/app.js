@@ -49,6 +49,17 @@ if (fs.existsSync(ENV_FILE_PATH)) {
     }
   }
 
+  // Support base64-encoded service account JSON as alternative
+  if (!process.env.FIREBASE_SERVICE_ACCOUNT_JSON && process.env.FIREBASE_SERVICE_ACCOUNT_B64) {
+    try {
+      const decoded = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_B64, 'base64').toString('utf8');
+      fs.writeFileSync(SERVICE_ACCOUNT_PATH, decoded, { mode: 0o600 });
+      console.log('Wrote service account JSON from FIREBASE_SERVICE_ACCOUNT_B64 to', SERVICE_ACCOUNT_PATH);
+    } catch (e) {
+      console.error('Failed to write service account JSON from FIREBASE_SERVICE_ACCOUNT_B64:', e.message);
+    }
+  }
+
 const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY || 'AIzaSyCBDESuLDHbqKb-g2mSPKrnxmM6Cl1lQEw';
 const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'visaportal-55200';
 const SERVICE_ACCOUNT_PATH = path.join(__dirname, '..', 'service-account.json');
@@ -126,13 +137,23 @@ async function initializeFirebase() {
   firebaseInitPromise = (async () => {
     try {
       // Prefer parsing service account JSON from env when available (more reliable on Render)
+      // Try env JSON first, then base64 env, then file
       if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
         try {
           serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
           console.log('Loaded service account from FIREBASE_SERVICE_ACCOUNT_JSON (env).');
         } catch (parseErr) {
           console.warn('Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:', parseErr.message);
-          // Fall back to file if available
+        }
+      }
+
+      if (!serviceAccount && process.env.FIREBASE_SERVICE_ACCOUNT_B64) {
+        try {
+          const decoded = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_B64, 'base64').toString('utf8');
+          serviceAccount = JSON.parse(decoded);
+          console.log('Loaded service account from FIREBASE_SERVICE_ACCOUNT_B64 (env).');
+        } catch (parseErr) {
+          console.warn('Failed to parse FIREBASE_SERVICE_ACCOUNT_B64:', parseErr.message);
         }
       }
 
